@@ -39,6 +39,17 @@ type Action =
   | { type: 'UPDATE_GOAL'; payload: Goal }
   | { type: 'DELETE_GOAL'; payload: { id: string } }
   | { type: 'CONTRIBUTE_GOAL'; payload: { id: string; amount: number } }
+  | {
+      type: 'CATEGORISE_TRANSACTIONS'
+      payload: {
+        ids: string[]
+        categoryId?: string
+        scope?: 'personal' | 'business'
+        /** When set, remember this as a rule for future imports. */
+        saveRuleMatch?: string
+      }
+    }
+  | { type: 'DELETE_RULE'; payload: { id: string } }
   | { type: 'RESET'; payload: FinanceState }
 
 function reducer(state: FinanceState, action: Action): FinanceState {
@@ -199,6 +210,31 @@ function reducer(state: FinanceState, action: Action): FinanceState {
             : g,
         ),
       }
+    case 'CATEGORISE_TRANSACTIONS': {
+      const ids = new Set(action.payload.ids)
+      const { categoryId, scope } = action.payload
+      const transactions = state.transactions.map((t) => {
+        if (!ids.has(t.id)) return t
+        const next = { ...t }
+        if (categoryId !== undefined) next.categoryId = categoryId || undefined
+        if (scope === 'business') next.businessAmount = t.amount
+        else if (scope === 'personal') next.businessAmount = undefined
+        return next
+      })
+
+      let rules = state.rules
+      if (action.payload.saveRuleMatch && categoryId) {
+        const match = action.payload.saveRuleMatch.toLowerCase().trim()
+        // Replace any existing rule with the same match.
+        rules = [
+          ...state.rules.filter((r) => r.match.toLowerCase() !== match),
+          { id: uid(), match, categoryId, scope },
+        ]
+      }
+      return { ...state, transactions, rules }
+    }
+    case 'DELETE_RULE':
+      return { ...state, rules: state.rules.filter((r) => r.id !== action.payload.id) }
     case 'RESET':
       return action.payload
     default:
@@ -213,6 +249,8 @@ function loadInitialState(): FinanceState {
       const parsed = JSON.parse(raw) as FinanceState
       // Minimal shape validation.
       if (parsed && Array.isArray(parsed.transactions) && Array.isArray(parsed.accounts)) {
+        // Backfill fields added in later versions.
+        if (!Array.isArray(parsed.rules)) parsed.rules = []
         return parsed
       }
     }

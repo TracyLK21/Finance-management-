@@ -82,10 +82,23 @@ export interface Goal {
   createdAt: string
 }
 
+/**
+ * A remembered categorisation rule: when a transaction description contains
+ * `match`, apply this category (and optionally business/personal) on import.
+ */
+export interface CategoryRule {
+  id: string
+  /** Lowercase substring matched against a transaction's description. */
+  match: string
+  categoryId: string
+  scope?: 'personal' | 'business'
+}
+
 export interface FinanceState {
   accounts: Account[]
   transactions: Transaction[]
   categories: Category[]
   budgets: Budget[]
   goals: Goal[]
+  rules: CategoryRule[]
 }

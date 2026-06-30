@@ -118,5 +118,5 @@ export function buildSeedState(): FinanceState {
     { id: uid(), name: 'New Laptop', targetAmount: 1800, savedAmount: 1800, color: '#8b5cf6', createdAt: now },
   ]
 
-  return { accounts, transactions, categories, budgets, goals }
+  return { accounts, transactions, categories, budgets, goals, rules: [] }
 }

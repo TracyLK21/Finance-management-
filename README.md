@@ -24,6 +24,10 @@ no data leaves your device.
 - **Transactions** — add, edit, and delete income, expenses, and transfers
   between accounts. Each can be marked Personal, Business, or a split. Filter by
   type, search notes/categories, and browse grouped by month.
+- **Review & sort** — group similar transactions by merchant and categorise
+  them in bulk (e.g. tag every Apple charge at once), set business/personal in
+  the same place, and save rules so future imports auto-categorise those
+  merchants.
 - **Budgets** — set a monthly limit per category and track spending against it
   with progress bars and over-budget warnings. Navigate between months.
 - **Savings goals** — create goals with targets and target dates, watch the

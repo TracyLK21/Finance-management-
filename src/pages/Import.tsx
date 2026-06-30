@@ -6,6 +6,7 @@ import type { Transaction } from '../types'
 import {
   autoCategorise,
   canonicalCategory,
+  matchRule,
   parseAmount,
   parseCSV,
   parseDate,
@@ -119,15 +120,22 @@ export default function Import() {
 
       const type = isIncome ? 'income' : 'expense'
 
-      // Prefer the bank's own category column; fall back to keyword matching.
+      // Priority: your saved rules → the bank's category column → keyword guess.
       let categoryId: string | undefined
       let categoryName: string | undefined
-      if (categoryCol >= 0) {
+      let scope: 'personal' | 'business' | undefined
+      const rule = matchRule(desc, state.rules)
+      if (rule) {
+        categoryId = rule.categoryId
+        scope = rule.scope
+      } else if (categoryCol >= 0) {
         const canon = canonicalCategory(row[categoryCol] ?? '')
         if (canon) categoryName = canon
       }
-      if (!categoryName) categoryId = autoCategorise(desc, state.categories, isIncome)
+      if (!categoryId && !categoryName) categoryId = autoCategorise(desc, state.categories, isIncome)
 
+      const business =
+        scope === 'business' || (scope === undefined && !isIncome && defaultScope === 'business')
       out.push({
         date: iso,
         type,
@@ -135,14 +143,14 @@ export default function Import() {
         accountId,
         categoryId,
         categoryName,
-        businessAmount: !isIncome && defaultScope === 'business' ? amount : undefined,
+        businessAmount: !isIncome && business ? amount : undefined,
         note: desc || undefined,
       })
     }
     return out
   }, [
     dataRows, accountId, dateCol, descCol, amountMode, amountCol, debitCol, creditCol,
-    categoryCol, expensesNegative, dateFormat, defaultScope, state.categories,
+    categoryCol, expensesNegative, dateFormat, defaultScope, state.categories, state.rules,
   ])
 
   const matched = drafts.filter((d) => d.categoryId || d.categoryName).length

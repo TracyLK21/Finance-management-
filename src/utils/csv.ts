@@ -1,5 +1,28 @@
 // CSV parsing and bank-statement import helpers.
-import type { Category } from '../types'
+import type { Category, CategoryRule } from '../types'
+
+/**
+ * Derives a stable "merchant" key from a messy bank description so similar
+ * transactions group together. Strips dates, card prefixes and reference
+ * numbers, then keeps the first few meaningful words.
+ */
+export function merchantKey(description: string): string {
+  let s = (description || '').toLowerCase()
+  s = s.replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ') // dates like 16/02
+  s = s.replace(/\b[a-z]?\d{4,}\b/g, ' ') // long reference / card numbers
+  s = s.replace(/\bv\d+\b/g, ' ') // card prefixes like v5137
+  s = s.replace(/[_]/g, ' ')
+  s = s.replace(/[^a-z0-9.&/ ]/g, ' ')
+  s = s.replace(/\s+/g, ' ').trim()
+  const tokens = s.split(' ').filter(Boolean).slice(0, 3)
+  return tokens.join(' ').trim()
+}
+
+/** Returns the first rule whose match is a substring of the description. */
+export function matchRule(description: string, rules: CategoryRule[]): CategoryRule | undefined {
+  const text = (description || '').toLowerCase()
+  return rules.find((r) => r.match && text.includes(r.match.toLowerCase()))
+}
 
 /**
  * Detect the field delimiter (comma, tab, semicolon or pipe) by counting

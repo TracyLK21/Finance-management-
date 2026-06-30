@@ -75,7 +75,14 @@ export default function Accounts() {
     localStorage.removeItem(STORAGE_KEY)
     dispatch({
       type: 'RESET',
-      payload: { accounts: [], transactions: [], categories: state.categories, budgets: [], goals: [] },
+      payload: {
+        accounts: [],
+        transactions: [],
+        categories: state.categories,
+        budgets: [],
+        goals: [],
+        rules: state.rules,
+      },
     })
   }
 
