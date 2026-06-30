@@ -30,14 +30,14 @@ export function buildSeedState(): FinanceState {
 
   const categories = [
     { id: cIncome, name: 'Salary', kind: 'income' as const, color: '#10b981', icon: '💰' },
-    { id: cRent, name: 'Rent', kind: 'expense' as const, color: '#6366f1', icon: '🏠' },
-    { id: cGroceries, name: 'Groceries', kind: 'expense' as const, color: '#f59e0b', icon: '🛒' },
-    { id: cDining, name: 'Dining', kind: 'expense' as const, color: '#ef4444', icon: '🍽️' },
-    { id: cTransport, name: 'Transport', kind: 'expense' as const, color: '#3b82f6', icon: '🚗' },
-    { id: cUtilities, name: 'Utilities', kind: 'expense' as const, color: '#8b5cf6', icon: '💡' },
-    { id: cEntertainment, name: 'Entertainment', kind: 'expense' as const, color: '#ec4899', icon: '🎬' },
-    { id: cShopping, name: 'Shopping', kind: 'expense' as const, color: '#14b8a6', icon: '🛍️' },
-    { id: cHealth, name: 'Health', kind: 'expense' as const, color: '#f97316', icon: '🩺' },
+    { id: cRent, name: 'Rent', kind: 'expense' as const, group: 'need' as const, color: '#6366f1', icon: '🏠' },
+    { id: cGroceries, name: 'Groceries', kind: 'expense' as const, group: 'need' as const, color: '#f59e0b', icon: '🛒' },
+    { id: cDining, name: 'Dining', kind: 'expense' as const, group: 'want' as const, color: '#ef4444', icon: '🍽️' },
+    { id: cTransport, name: 'Transport', kind: 'expense' as const, group: 'need' as const, color: '#3b82f6', icon: '🚗' },
+    { id: cUtilities, name: 'Utilities', kind: 'expense' as const, group: 'need' as const, color: '#8b5cf6', icon: '💡' },
+    { id: cEntertainment, name: 'Entertainment', kind: 'expense' as const, group: 'want' as const, color: '#ec4899', icon: '🎬' },
+    { id: cShopping, name: 'Shopping', kind: 'expense' as const, group: 'want' as const, color: '#14b8a6', icon: '🛍️' },
+    { id: cHealth, name: 'Health', kind: 'expense' as const, group: 'need' as const, color: '#f97316', icon: '🩺' },
   ]
 
   const accounts = [

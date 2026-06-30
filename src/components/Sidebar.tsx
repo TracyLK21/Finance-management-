@@ -2,7 +2,9 @@ import { NavLink } from 'react-router-dom'
 
 const links = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
+  { to: '/insights', label: 'Insights', icon: '🔍', end: false },
   { to: '/transactions', label: 'Transactions', icon: '💸', end: false },
+  { to: '/import', label: 'Import statement', icon: '📥', end: false },
   { to: '/budgets', label: 'Budgets', icon: '🎯', end: false },
   { to: '/goals', label: 'Goals', icon: '🏆', end: false },
   { to: '/accounts', label: 'Accounts', icon: '🏦', end: false },

@@ -14,6 +14,7 @@ const now = () => new Date().toISOString()
 
 type Action =
   | { type: 'ADD_TRANSACTION'; payload: Omit<Transaction, 'id' | 'createdAt'> }
+  | { type: 'ADD_TRANSACTIONS'; payload: Omit<Transaction, 'id' | 'createdAt'>[] }
   | { type: 'UPDATE_TRANSACTION'; payload: Transaction }
   | { type: 'DELETE_TRANSACTION'; payload: { id: string } }
   | { type: 'ADD_ACCOUNT'; payload: Omit<Account, 'id' | 'createdAt'> }
@@ -40,6 +41,10 @@ function reducer(state: FinanceState, action: Action): FinanceState {
           ...state.transactions,
         ],
       }
+    case 'ADD_TRANSACTIONS': {
+      const created = action.payload.map((t) => ({ ...t, id: uid(), createdAt: now() }))
+      return { ...state, transactions: [...created, ...state.transactions] }
+    }
     case 'UPDATE_TRANSACTION':
       return {
         ...state,

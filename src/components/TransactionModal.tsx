@@ -21,6 +21,16 @@ export default function TransactionModal({ existing, onClose }: Props) {
   const [categoryId, setCategoryId] = useState(existing?.categoryId ?? '')
   const [note, setNote] = useState(existing?.note ?? '')
 
+  const initialScope: 'personal' | 'business' | 'split' = !existing?.businessAmount
+    ? 'personal'
+    : existing.businessAmount >= existing.amount
+      ? 'business'
+      : 'split'
+  const [scope, setScope] = useState<'personal' | 'business' | 'split'>(initialScope)
+  const [businessAmount, setBusinessAmount] = useState(
+    existing?.businessAmount && initialScope === 'split' ? String(existing.businessAmount) : '',
+  )
+
   const relevantCategories = state.categories.filter((c) =>
     type === 'income' ? c.kind === 'income' : c.kind === 'expense',
   )
@@ -31,6 +41,15 @@ export default function TransactionModal({ existing, onClose }: Props) {
     if (!numericAmount || !accountId) return
     if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) return
 
+    let resolvedBusiness: number | undefined
+    if (type !== 'transfer') {
+      if (scope === 'business') resolvedBusiness = numericAmount
+      else if (scope === 'split') {
+        const portion = Math.min(Math.abs(parseFloat(businessAmount)) || 0, numericAmount)
+        resolvedBusiness = portion > 0 ? portion : undefined
+      }
+    }
+
     const base = {
       date,
       type,
@@ -38,6 +57,7 @@ export default function TransactionModal({ existing, onClose }: Props) {
       accountId,
       toAccountId: type === 'transfer' ? toAccountId : undefined,
       categoryId: type === 'transfer' ? undefined : categoryId || undefined,
+      businessAmount: resolvedBusiness,
       note: note.trim() || undefined,
     }
 
@@ -148,6 +168,36 @@ export default function TransactionModal({ existing, onClose }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {type !== 'transfer' && (
+          <div className="field">
+            <label>{type === 'income' ? 'Business or personal income?' : 'Business or personal?'}</label>
+            <div className="segmented">
+              {(['personal', 'business', 'split'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={scope === s ? 'active' : ''}
+                  onClick={() => setScope(s)}
+                >
+                  {s[0].toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+            {scope === 'split' && (
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Business portion ($)"
+                value={businessAmount}
+                onChange={(e) => setBusinessAmount(e.target.value)}
+                style={{ marginTop: 8 }}
+              />
+            )}
           </div>
         )}
 

@@ -1,7 +1,9 @@
 import { Routes, Route } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
+import Insights from './pages/Insights'
 import Transactions from './pages/Transactions'
+import Import from './pages/Import'
 import Budgets from './pages/Budgets'
 import Goals from './pages/Goals'
 import Accounts from './pages/Accounts'
@@ -13,7 +15,9 @@ export default function App() {
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/insights" element={<Insights />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/import" element={<Import />} />
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/accounts" element={<Accounts />} />

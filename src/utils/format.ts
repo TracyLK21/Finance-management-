@@ -1,15 +1,15 @@
 // Formatting helpers shared across the app.
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
+const currencyFormatter = new Intl.NumberFormat('en-AU', {
   style: 'currency',
-  currency: 'USD',
+  currency: 'AUD',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
 
-const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
+const compactCurrencyFormatter = new Intl.NumberFormat('en-AU', {
   style: 'currency',
-  currency: 'USD',
+  currency: 'AUD',
   notation: 'compact',
   maximumFractionDigits: 1,
 })

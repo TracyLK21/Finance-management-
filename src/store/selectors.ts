@@ -1,4 +1,4 @@
-import type { Account, Category, FinanceState, Transaction } from '../types'
+import type { Account, Category, CategoryGroup, FinanceState, Transaction } from '../types'
 import { monthKey, recentMonthKeys } from '../utils/date'
 
 /** Net effect of a transaction on a given account's balance. */
@@ -109,6 +109,86 @@ export function budgetProgress(state: FinanceState, monthKeyStr: string): Budget
     })
   }
   return result.sort((a, b) => b.ratio - a.ratio)
+}
+
+export interface PeriodSummary {
+  monthsCount: number
+  income: number
+  expense: number
+  net: number
+  /** Average per month over the period. */
+  avgIncome: number
+  avgExpense: number
+  avgNet: number
+  /** Expense totals split by need/want classification. */
+  needs: number
+  wants: number
+  savings: number
+  /** Expenses with no group set (need categorising). */
+  unclassified: number
+}
+
+/**
+ * Aggregates income and expenses over the last `months` months and breaks
+ * expenses into needs/wants/savings for the 50/30/20 view.
+ */
+export function periodSummary(state: FinanceState, months: number): PeriodSummary {
+  const keys = new Set(recentMonthKeys(months))
+  let income = 0
+  let expense = 0
+  const byGroup: Record<CategoryGroup, number> = { need: 0, want: 0, savings: 0 }
+  let unclassified = 0
+
+  for (const t of state.transactions) {
+    if (!keys.has(monthKey(t.date))) continue
+    if (t.type === 'income') {
+      income += t.amount
+    } else if (t.type === 'expense') {
+      expense += t.amount
+      const cat = t.categoryId ? state.categories.find((c) => c.id === t.categoryId) : undefined
+      if (cat?.group) byGroup[cat.group] += t.amount
+      else unclassified += t.amount
+    }
+  }
+
+  return {
+    monthsCount: months,
+    income,
+    expense,
+    net: income - expense,
+    avgIncome: income / months,
+    avgExpense: expense / months,
+    avgNet: (income - expense) / months,
+    needs: byGroup.need,
+    wants: byGroup.want,
+    savings: byGroup.savings,
+    unclassified,
+  }
+}
+
+/** Expense totals per category across the last `months` months, sorted desc. */
+export function spendingByCategoryRange(state: FinanceState, months: number): CategorySpend[] {
+  const keys = new Set(recentMonthKeys(months))
+  const totals = new Map<string, number>()
+  for (const t of state.transactions) {
+    if (t.type !== 'expense' || !t.categoryId) continue
+    if (!keys.has(monthKey(t.date))) continue
+    totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
+  }
+  const result: CategorySpend[] = []
+  for (const [categoryId, spent] of totals) {
+    const category = state.categories.find((c) => c.id === categoryId)
+    if (category) result.push({ category, spent })
+  }
+  return result.sort((a, b) => b.spent - a.spent)
+}
+
+/** Count of expense transactions in the period that have no category assigned. */
+export function uncategorisedCount(state: FinanceState, months: number): number {
+  const keys = new Set(recentMonthKeys(months))
+  return state.transactions.filter(
+    (t) => t.type === 'expense' && !t.categoryId && keys.has(monthKey(t.date)),
+  ).length
 }
 
 export function categoryById(state: FinanceState, id?: string): Category | undefined {

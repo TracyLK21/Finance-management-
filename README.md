@@ -12,9 +12,18 @@ no data leaves your device.
 - **Dashboard** — net worth, monthly income/expenses, savings rate, an
   income-vs-expenses bar chart, a net-worth trend chart, a spending-by-category
   breakdown, budget health, and recent activity at a glance.
+- **Insights** — a 3/6/12-month review: average monthly income, spending, and
+  surplus/shortfall; a **business vs personal** split (for ABN/sole-trader
+  contractors who mix the two); a **Needs vs Wants** (non-discretionary vs
+  discretionary) breakdown against the 50/30/20 guideline; and top spending
+  categories.
+- **Import bank statement** — upload a CSV exported from your bank, map the
+  columns (with sensible auto-detection and Australian date defaults), and the
+  app auto-categorises transactions using built-in merchant rules and tags them
+  business or personal.
 - **Transactions** — add, edit, and delete income, expenses, and transfers
-  between accounts. Filter by type, search notes/categories, and browse grouped
-  by month.
+  between accounts. Each can be marked Personal, Business, or a split. Filter by
+  type, search notes/categories, and browse grouped by month.
 - **Budgets** — set a monthly limit per category and track spending against it
   with progress bars and over-budget warnings. Navigate between months.
 - **Savings goals** — create goals with targets and target dates, watch the

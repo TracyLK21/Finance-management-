@@ -1,0 +1,379 @@
+import { useMemo, useState } from 'react'
+import { useFinance } from '../store/FinanceContext'
+import { categoryById } from '../store/selectors'
+import type { Transaction } from '../types'
+import {
+  autoCategorise,
+  parseAmount,
+  parseCSV,
+  parseDate,
+  type DateFormat,
+} from '../utils/csv'
+import { formatCurrency, formatDate } from '../utils/format'
+
+type Draft = Omit<Transaction, 'id' | 'createdAt'>
+
+const colLabel = (i: number) => `Column ${i + 1}`
+
+export default function Import() {
+  const { state, dispatch } = useFinance()
+  const [rows, setRows] = useState<string[][]>([])
+  const [fileName, setFileName] = useState('')
+  const [hasHeader, setHasHeader] = useState(true)
+  const [headers, setHeaders] = useState<string[]>([])
+
+  const [dateCol, setDateCol] = useState(-1)
+  const [descCol, setDescCol] = useState(-1)
+  const [amountMode, setAmountMode] = useState<'single' | 'debitcredit'>('single')
+  const [amountCol, setAmountCol] = useState(-1)
+  const [debitCol, setDebitCol] = useState(-1)
+  const [creditCol, setCreditCol] = useState(-1)
+  const [expensesNegative, setExpensesNegative] = useState(true)
+  const [dateFormat, setDateFormat] = useState<DateFormat>('DMY')
+
+  const [accountId, setAccountId] = useState(state.accounts[0]?.id ?? '')
+  const [defaultScope, setDefaultScope] = useState<'personal' | 'business'>('personal')
+  const [imported, setImported] = useState<number | null>(null)
+
+  function autoGuess(hdrs: string[]) {
+    const find = (...keys: string[]) =>
+      hdrs.findIndex((h) => keys.some((k) => h.toLowerCase().includes(k)))
+    setDateCol(find('date'))
+    setDescCol(find('description', 'narrative', 'details', 'transaction', 'reference', 'memo'))
+    const amt = find('amount')
+    const deb = find('debit', 'withdrawal')
+    const cred = find('credit', 'deposit')
+    if (deb >= 0 && cred >= 0) {
+      setAmountMode('debitcredit')
+      setDebitCol(deb)
+      setCreditCol(cred)
+    } else {
+      setAmountMode('single')
+      setAmountCol(amt >= 0 ? amt : 1)
+    }
+  }
+
+  function handleFile(file: File) {
+    setImported(null)
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const parsed = parseCSV(String(reader.result ?? ''))
+      if (parsed.length === 0) return
+      setRows(parsed)
+      // Decide header: if first row has no parseable number anywhere, treat as header.
+      const firstHasNumber = parsed[0].some((c) => parseAmount(c) != null && /\d/.test(c))
+      const headerRow = !firstHasNumber
+      setHasHeader(headerRow)
+      const hdrs = headerRow ? parsed[0] : parsed[0].map((_, i) => colLabel(i))
+      setHeaders(hdrs)
+      autoGuess(headerRow ? hdrs : parsed[0].map((_, i) => colLabel(i)))
+    }
+    reader.readAsText(file)
+  }
+
+  const dataRows = useMemo(
+    () => (hasHeader ? rows.slice(1) : rows),
+    [rows, hasHeader],
+  )
+
+  const drafts = useMemo<Draft[]>(() => {
+    if (!accountId || dateCol < 0 || descCol < 0) return []
+    const out: Draft[] = []
+    for (const row of dataRows) {
+      const iso = parseDate(row[dateCol] ?? '', dateFormat)
+      const desc = (row[descCol] ?? '').trim()
+      if (!iso) continue
+
+      let amount = 0
+      let isIncome = false
+      if (amountMode === 'single') {
+        const val = parseAmount(row[amountCol] ?? '')
+        if (val == null || val === 0) continue
+        isIncome = expensesNegative ? val > 0 : val < 0
+        amount = Math.abs(val)
+      } else {
+        const debit = parseAmount(row[debitCol] ?? '') ?? 0
+        const credit = parseAmount(row[creditCol] ?? '') ?? 0
+        if (Math.abs(credit) > 0) {
+          isIncome = true
+          amount = Math.abs(credit)
+        } else if (Math.abs(debit) > 0) {
+          isIncome = false
+          amount = Math.abs(debit)
+        } else {
+          continue
+        }
+      }
+
+      const type = isIncome ? 'income' : 'expense'
+      const categoryId = autoCategorise(desc, state.categories, isIncome)
+      out.push({
+        date: iso,
+        type,
+        amount,
+        accountId,
+        categoryId,
+        businessAmount: !isIncome && defaultScope === 'business' ? amount : undefined,
+        note: desc || undefined,
+      })
+    }
+    return out
+  }, [
+    dataRows, accountId, dateCol, descCol, amountMode, amountCol, debitCol, creditCol,
+    expensesNegative, dateFormat, defaultScope, state.categories,
+  ])
+
+  const matched = drafts.filter((d) => d.categoryId).length
+
+  function doImport() {
+    if (drafts.length === 0) return
+    dispatch({ type: 'ADD_TRANSACTIONS', payload: drafts })
+    setImported(drafts.length)
+    setRows([])
+    setHeaders([])
+    setFileName('')
+  }
+
+  const columnOptions = headers.map((h, i) => (
+    <option key={i} value={i}>
+      {h || colLabel(i)}
+    </option>
+  ))
+
+  return (
+    <>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Import bank statement</h1>
+          <p className="page-subtitle">
+            Upload a CSV exported from your bank — we'll sort and categorise it for you
+          </p>
+        </div>
+      </div>
+
+      {imported != null && (
+        <div className="card" style={{ marginBottom: 18, borderColor: 'var(--primary)' }}>
+          <strong className="pos">✅ Imported {imported} transactions.</strong>{' '}
+          <span className="muted">
+            Review them on the Transactions page, then check the Insights page for your breakdown.
+          </span>
+        </div>
+      )}
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h3 className="card-title">1. Choose your CSV file</h3>
+        <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>
+          In your online banking, look for “Export”, “Download transactions”, or “Statements” and
+          choose <strong>CSV</strong>. Then pick the file here.
+        </p>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) handleFile(f)
+          }}
+          className="input"
+          style={{ padding: 9 }}
+        />
+        {fileName && (
+          <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+            Loaded <strong>{fileName}</strong> · {Math.max(0, rows.length - (hasHeader ? 1 : 0))} rows
+          </div>
+        )}
+      </div>
+
+      {rows.length > 0 && (
+        <>
+          <div className="card" style={{ marginBottom: 18 }}>
+            <h3 className="card-title">2. Tell us which columns are which</h3>
+
+            <label className="tag" style={{ cursor: 'pointer', marginBottom: 14 }}>
+              <input
+                type="checkbox"
+                checked={hasHeader}
+                onChange={(e) => setHasHeader(e.target.checked)}
+              />
+              First row is a header (column names)
+            </label>
+
+            <div className="form-row">
+              <div className="field">
+                <label>Date column</label>
+                <select className="select" value={dateCol} onChange={(e) => setDateCol(+e.target.value)}>
+                  <option value={-1}>Select…</option>
+                  {columnOptions}
+                </select>
+              </div>
+              <div className="field">
+                <label>Date format</label>
+                <select className="select" value={dateFormat} onChange={(e) => setDateFormat(e.target.value as DateFormat)}>
+                  <option value="DMY">Day/Month/Year (Australian)</option>
+                  <option value="MDY">Month/Day/Year (US)</option>
+                  <option value="YMD">Year-Month-Day</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="field">
+              <label>Description column</label>
+              <select className="select" value={descCol} onChange={(e) => setDescCol(+e.target.value)}>
+                <option value={-1}>Select…</option>
+                {columnOptions}
+              </select>
+            </div>
+
+            <div className="field">
+              <label>How are amounts shown?</label>
+              <div className="segmented">
+                <button
+                  type="button"
+                  className={amountMode === 'single' ? 'active' : ''}
+                  onClick={() => setAmountMode('single')}
+                >
+                  One amount column
+                </button>
+                <button
+                  type="button"
+                  className={amountMode === 'debitcredit' ? 'active' : ''}
+                  onClick={() => setAmountMode('debitcredit')}
+                >
+                  Separate debit/credit
+                </button>
+              </div>
+            </div>
+
+            {amountMode === 'single' ? (
+              <>
+                <div className="field">
+                  <label>Amount column</label>
+                  <select className="select" value={amountCol} onChange={(e) => setAmountCol(+e.target.value)}>
+                    <option value={-1}>Select…</option>
+                    {columnOptions}
+                  </select>
+                </div>
+                <label className="tag" style={{ cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={expensesNegative}
+                    onChange={(e) => setExpensesNegative(e.target.checked)}
+                  />
+                  Money spent shows as a negative number (most banks)
+                </label>
+              </>
+            ) : (
+              <div className="form-row">
+                <div className="field">
+                  <label>Debit (spent) column</label>
+                  <select className="select" value={debitCol} onChange={(e) => setDebitCol(+e.target.value)}>
+                    <option value={-1}>Select…</option>
+                    {columnOptions}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Credit (received) column</label>
+                  <select className="select" value={creditCol} onChange={(e) => setCreditCol(+e.target.value)}>
+                    <option value={-1}>Select…</option>
+                    {columnOptions}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ marginBottom: 18 }}>
+            <h3 className="card-title">3. Where do these belong?</h3>
+            <div className="form-row">
+              <div className="field">
+                <label>Import into account</label>
+                <select className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                  {state.accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Tag expenses as</label>
+                <div className="segmented">
+                  <button
+                    type="button"
+                    className={defaultScope === 'personal' ? 'active' : ''}
+                    onClick={() => setDefaultScope('personal')}
+                  >
+                    Personal
+                  </button>
+                  <button
+                    type="button"
+                    className={defaultScope === 'business' ? 'active' : ''}
+                    onClick={() => setDefaultScope('business')}
+                  >
+                    Business
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="muted" style={{ fontSize: 12.5 }}>
+              This is just a starting point — you can re-tag any transaction (including marking it a
+              split of business + personal) afterwards on the Transactions page.
+            </p>
+          </div>
+
+          <div className="card">
+            <h3 className="card-title">
+              4. Preview
+              <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
+                {drafts.length} ready · {matched} auto-categorised
+              </span>
+            </h3>
+            {drafts.length === 0 ? (
+              <div className="empty">
+                Select the Date, Description and Amount columns above to see a preview.
+              </div>
+            ) : (
+              <>
+                <div className="txn-list">
+                  {drafts.slice(0, 8).map((d, i) => {
+                    const cat = categoryById(state, d.categoryId)
+                    return (
+                      <div className="txn-row" key={i}>
+                        <div className="txn-icon">{d.type === 'income' ? '💰' : cat?.icon ?? '❓'}</div>
+                        <div>
+                          <div className="txn-note">{d.note || '(no description)'}</div>
+                          <div className="txn-sub">
+                            {cat ? cat.name : 'Uncategorised'} ·{' '}
+                            {d.businessAmount ? 'Business' : 'Personal'}
+                          </div>
+                        </div>
+                        <div className="txn-col-hide muted" style={{ fontSize: 13 }}>
+                          {formatDate(d.date)}
+                        </div>
+                        <div className={`txn-amount ${d.type === 'income' ? 'pos' : 'neg'}`}>
+                          {d.type === 'income' ? '+' : '−'}
+                          {formatCurrency(d.amount)}
+                        </div>
+                        <div />
+                      </div>
+                    )
+                  })}
+                </div>
+                {drafts.length > 8 && (
+                  <div className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+                    …and {drafts.length - 8} more.
+                  </div>
+                )}
+                <div style={{ marginTop: 18 }}>
+                  <button className="btn btn-primary" onClick={doImport}>
+                    Import {drafts.length} transactions
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  )
+}

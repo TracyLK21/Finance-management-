@@ -224,16 +224,29 @@ function CategoryManager({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useFinance()
   const [name, setName] = useState('')
   const [kind, setKind] = useState<Category['kind']>('expense')
+  const [group, setGroup] = useState<NonNullable<Category['group']>>('need')
   const [icon, setIcon] = useState('🏷️')
   const [color, setColor] = useState(PALETTE[0])
 
   function addCategory(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    dispatch({ type: 'ADD_CATEGORY', payload: { name: name.trim(), kind, color, icon: icon.trim() || undefined } })
+    dispatch({
+      type: 'ADD_CATEGORY',
+      payload: {
+        name: name.trim(),
+        kind,
+        group: kind === 'expense' ? group : undefined,
+        color,
+        icon: icon.trim() || undefined,
+      },
+    })
     setName('')
     setIcon('🏷️')
   }
+
+  const groupLabel = (g?: Category['group']) =>
+    g === 'need' ? 'need' : g === 'want' ? 'want' : g === 'savings' ? 'savings' : ''
 
   return (
     <Modal title="Manage categories" onClose={onClose}>
@@ -243,7 +256,10 @@ function CategoryManager({ onClose }: { onClose: () => void }) {
             <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <span className="dot" style={{ background: c.color }} />
               {c.icon} {c.name}
-              <span className="muted" style={{ fontSize: 12 }}>· {c.kind}</span>
+              <span className="muted" style={{ fontSize: 12 }}>
+                · {c.kind}
+                {c.kind === 'expense' && c.group ? ` · ${groupLabel(c.group)}` : ''}
+              </span>
             </span>
             <button
               className="btn btn-ghost btn-sm btn-danger"
@@ -277,6 +293,22 @@ function CategoryManager({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
+        {kind === 'expense' && (
+          <div className="field">
+            <label>Need or want?</label>
+            <div className="segmented">
+              <button type="button" className={group === 'need' ? 'active' : ''} onClick={() => setGroup('need')}>
+                Need
+              </button>
+              <button type="button" className={group === 'want' ? 'active' : ''} onClick={() => setGroup('want')}>
+                Want
+              </button>
+              <button type="button" className={group === 'savings' ? 'active' : ''} onClick={() => setGroup('savings')}>
+                Savings
+              </button>
+            </div>
+          </div>
+        )}
         <div className="field">
           <label>Color</label>
           <div className="chip-row">

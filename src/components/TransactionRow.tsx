@@ -24,10 +24,17 @@ export default function TransactionRow({ txn, onEdit }: Props) {
       ? `Transfer to ${toAccount?.name ?? 'account'}`
       : category?.name ?? 'Uncategorized')
 
+  const bizTag =
+    txn.businessAmount && txn.businessAmount >= txn.amount
+      ? ' · 💼 Business'
+      : txn.businessAmount && txn.businessAmount > 0
+        ? ' · 💼 Split'
+        : ''
+
   const subtitle =
     txn.type === 'transfer'
       ? `${account?.name ?? ''} → ${toAccount?.name ?? ''}`
-      : `${category?.name ?? 'Uncategorized'} · ${account?.name ?? ''}`
+      : `${category?.name ?? 'Uncategorized'} · ${account?.name ?? ''}${bizTag}`
 
   return (
     <div className="txn-row">
