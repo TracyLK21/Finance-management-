@@ -1,8 +1,27 @@
 // CSV parsing and bank-statement import helpers.
 import type { Category } from '../types'
 
-/** Parse CSV text into rows of string cells. Handles quoted fields and commas. */
-export function parseCSV(text: string): string[][] {
+/**
+ * Detect the field delimiter (comma, tab, semicolon or pipe) by counting
+ * candidates on the first non-empty line.
+ */
+export function detectDelimiter(text: string): string {
+  const firstLine = text.replace(/^﻿/, '').split(/\r?\n/).find((l) => l.trim() !== '') ?? ''
+  const candidates = ['\t', ',', ';', '|']
+  let best = ','
+  let bestCount = 0
+  for (const d of candidates) {
+    const count = firstLine.split(d).length - 1
+    if (count > bestCount) {
+      best = d
+      bestCount = count
+    }
+  }
+  return bestCount === 0 ? ',' : best
+}
+
+/** Parse delimited text (CSV/TSV) into rows of string cells. Handles quoted fields. */
+export function parseCSV(text: string, delimiter?: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
@@ -10,6 +29,7 @@ export function parseCSV(text: string): string[][] {
 
   // Normalise line endings and strip a leading BOM.
   const src = text.replace(/^﻿/, '')
+  const sep = delimiter ?? detectDelimiter(src)
 
   for (let i = 0; i < src.length; i++) {
     const ch = src[i]
@@ -26,7 +46,7 @@ export function parseCSV(text: string): string[][] {
       }
     } else if (ch === '"') {
       inQuotes = true
-    } else if (ch === ',') {
+    } else if (ch === sep) {
       row.push(field)
       field = ''
     } else if (ch === '\n' || ch === '\r') {
@@ -49,6 +69,11 @@ export function parseCSV(text: string): string[][] {
 
 export type DateFormat = 'DMY' | 'MDY' | 'YMD'
 
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+}
+
 /** Parse a date cell into an ISO yyyy-mm-dd string, or null if unparseable. */
 export function parseDate(value: string, format: DateFormat): string | null {
   const v = value.trim()
@@ -59,6 +84,18 @@ export function parseDate(value: string, format: DateFormat): string | null {
   if (iso) {
     const [, y, m, d] = iso
     return toISO(+y, +m, +d)
+  }
+
+  // Month-name dates: 15-May-26, 3 Feb 2026, 15/Jan/2026
+  const named = v.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,9})[-/ ](\d{2,4})$/)
+  if (named) {
+    const [, d, mon, y] = named
+    const m = MONTHS[mon.slice(0, 3).toLowerCase()]
+    if (m) {
+      let year = +y
+      if (y.length <= 2) year += year < 70 ? 2000 : 1900
+      return toISO(year, m, +d)
+    }
   }
 
   const parts = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/)
@@ -171,6 +208,45 @@ const RULES: Rule[] = [
     keywords: ['salary', 'payroll', 'wage', 'pay run', 'wages'],
   },
 ]
+
+// Maps common bank-supplied category labels to canonical category names so we
+// reuse existing categories instead of creating near-duplicates.
+const CATEGORY_SYNONYMS: Record<string, string> = {
+  'eating out': 'Dining', restaurants: 'Dining', restaurant: 'Dining', cafes: 'Dining',
+  cafe: 'Dining', takeaway: 'Dining', 'food & drink': 'Dining', 'food and drink': 'Dining',
+  dining: 'Dining',
+  groceries: 'Groceries', supermarkets: 'Groceries', supermarket: 'Groceries',
+  fuel: 'Transport', petrol: 'Transport', transport: 'Transport', car: 'Transport',
+  automotive: 'Transport', 'public transport': 'Transport', travel: 'Transport',
+  utilities: 'Utilities', bills: 'Utilities', 'bills & utilities': 'Utilities',
+  phone: 'Utilities', internet: 'Utilities', electricity: 'Utilities', gas: 'Utilities',
+  water: 'Utilities',
+  rent: 'Rent', mortgage: 'Rent', housing: 'Rent', home: 'Rent',
+  health: 'Health', medical: 'Health', pharmacy: 'Health', fitness: 'Health',
+  'health & fitness': 'Health',
+  entertainment: 'Entertainment', subscriptions: 'Entertainment', streaming: 'Entertainment',
+  media: 'Entertainment',
+  shopping: 'Shopping', retail: 'Shopping', clothing: 'Shopping', 'general retail': 'Shopping',
+  salary: 'Salary', income: 'Salary', wages: 'Salary', pay: 'Salary',
+}
+
+// Bank categories that carry no useful classification — leave these uncategorised.
+const CATEGORY_SKIP = new Set([
+  'transfers out', 'transfers in', 'transfer', 'transfers', 'uncategorised',
+  'uncategorized', 'other', 'miscellaneous', 'misc', 'payment', 'payments',
+])
+
+/**
+ * Normalises a bank-supplied category label to a category name we should use,
+ * or '' if it should be skipped (left uncategorised).
+ */
+export function canonicalCategory(raw: string): string {
+  const v = raw.trim()
+  if (!v) return ''
+  const key = v.toLowerCase()
+  if (CATEGORY_SKIP.has(key)) return ''
+  return CATEGORY_SYNONYMS[key] ?? v
+}
 
 /**
  * Returns the id of the best-matching category for a transaction description,

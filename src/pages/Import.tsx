@@ -5,6 +5,7 @@ import { categoryById } from '../store/selectors'
 import type { Transaction } from '../types'
 import {
   autoCategorise,
+  canonicalCategory,
   parseAmount,
   parseCSV,
   parseDate,
@@ -12,7 +13,7 @@ import {
 } from '../utils/csv'
 import { formatCurrency, formatDate } from '../utils/format'
 
-type Draft = Omit<Transaction, 'id' | 'createdAt'>
+type Draft = Omit<Transaction, 'id' | 'createdAt'> & { categoryName?: string }
 
 const colLabel = (i: number) => `Column ${i + 1}`
 
@@ -29,6 +30,7 @@ export default function Import() {
   const [amountCol, setAmountCol] = useState(-1)
   const [debitCol, setDebitCol] = useState(-1)
   const [creditCol, setCreditCol] = useState(-1)
+  const [categoryCol, setCategoryCol] = useState(-1)
   const [expensesNegative, setExpensesNegative] = useState(true)
   const [dateFormat, setDateFormat] = useState<DateFormat>('DMY')
 
@@ -40,7 +42,13 @@ export default function Import() {
     const find = (...keys: string[]) =>
       hdrs.findIndex((h) => keys.some((k) => h.toLowerCase().includes(k)))
     setDateCol(find('date'))
-    setDescCol(find('description', 'narrative', 'details', 'transaction', 'reference', 'memo'))
+    // Prefer a specific "details/narrative/merchant" column over a generic
+    // "transaction type" column.
+    let desc = find('details', 'narrative', 'description', 'particulars', 'memo')
+    if (desc < 0) desc = find('merchant')
+    if (desc < 0) desc = find('reference', 'transaction')
+    setDescCol(desc)
+    setCategoryCol(find('category'))
     const amt = find('amount')
     const deb = find('debit', 'withdrawal')
     const cred = find('credit', 'deposit')
@@ -108,13 +116,23 @@ export default function Import() {
       }
 
       const type = isIncome ? 'income' : 'expense'
-      const categoryId = autoCategorise(desc, state.categories, isIncome)
+
+      // Prefer the bank's own category column; fall back to keyword matching.
+      let categoryId: string | undefined
+      let categoryName: string | undefined
+      if (categoryCol >= 0) {
+        const canon = canonicalCategory(row[categoryCol] ?? '')
+        if (canon) categoryName = canon
+      }
+      if (!categoryName) categoryId = autoCategorise(desc, state.categories, isIncome)
+
       out.push({
         date: iso,
         type,
         amount,
         accountId,
         categoryId,
+        categoryName,
         businessAmount: !isIncome && defaultScope === 'business' ? amount : undefined,
         note: desc || undefined,
       })
@@ -122,14 +140,14 @@ export default function Import() {
     return out
   }, [
     dataRows, accountId, dateCol, descCol, amountMode, amountCol, debitCol, creditCol,
-    expensesNegative, dateFormat, defaultScope, state.categories,
+    categoryCol, expensesNegative, dateFormat, defaultScope, state.categories,
   ])
 
-  const matched = drafts.filter((d) => d.categoryId).length
+  const matched = drafts.filter((d) => d.categoryId || d.categoryName).length
 
   function doImport() {
     if (drafts.length === 0) return
-    dispatch({ type: 'ADD_TRANSACTIONS', payload: drafts })
+    dispatch({ type: 'IMPORT_TRANSACTIONS', payload: drafts })
     setImported(drafts.length)
     setRows([])
     setHeaders([])
@@ -234,6 +252,20 @@ export default function Import() {
                 <option value={-1}>Select…</option>
                 {columnOptions}
               </select>
+            </div>
+
+            <div className="field">
+              <label>Category column (optional — if your statement has one)</label>
+              <select className="select" value={categoryCol} onChange={(e) => setCategoryCol(+e.target.value)}>
+                <option value={-1}>None — sort automatically</option>
+                {columnOptions}
+              </select>
+              {categoryCol >= 0 && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  We'll use your bank's labels and create any categories you don't have yet (you can
+                  re-tag them as need/want later).
+                </span>
+              )}
             </div>
 
             <div className="field">
@@ -349,14 +381,14 @@ export default function Import() {
                 <div className="txn-list">
                   {drafts.slice(0, 8).map((d, i) => {
                     const cat = categoryById(state, d.categoryId)
+                    const catLabel = d.categoryName ?? cat?.name ?? 'Uncategorised'
                     return (
                       <div className="txn-row" key={i}>
-                        <div className="txn-icon">{d.type === 'income' ? '💰' : cat?.icon ?? '❓'}</div>
+                        <div className="txn-icon">{d.type === 'income' ? '💰' : cat?.icon ?? '🏷️'}</div>
                         <div>
                           <div className="txn-note">{d.note || '(no description)'}</div>
                           <div className="txn-sub">
-                            {cat ? cat.name : 'Uncategorised'} ·{' '}
-                            {d.businessAmount ? 'Business' : 'Personal'}
+                            {catLabel} · {d.businessAmount ? 'Business' : 'Personal'}
                           </div>
                         </div>
                         <div className="txn-col-hide muted" style={{ fontSize: 13 }}>

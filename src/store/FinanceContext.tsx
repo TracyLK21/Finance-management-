@@ -15,6 +15,10 @@ const now = () => new Date().toISOString()
 type Action =
   | { type: 'ADD_TRANSACTION'; payload: Omit<Transaction, 'id' | 'createdAt'> }
   | { type: 'ADD_TRANSACTIONS'; payload: Omit<Transaction, 'id' | 'createdAt'>[] }
+  | {
+      type: 'IMPORT_TRANSACTIONS'
+      payload: (Omit<Transaction, 'id' | 'createdAt'> & { categoryName?: string })[]
+    }
   | { type: 'UPDATE_TRANSACTION'; payload: Transaction }
   | { type: 'DELETE_TRANSACTION'; payload: { id: string } }
   | { type: 'ADD_ACCOUNT'; payload: Omit<Account, 'id' | 'createdAt'> }
@@ -44,6 +48,42 @@ function reducer(state: FinanceState, action: Action): FinanceState {
     case 'ADD_TRANSACTIONS': {
       const created = action.payload.map((t) => ({ ...t, id: uid(), createdAt: now() }))
       return { ...state, transactions: [...created, ...state.transactions] }
+    }
+    case 'IMPORT_TRANSACTIONS': {
+      // Resolve each row's category by name, creating categories the user
+      // doesn't have yet so the bank's own labels carry through.
+      const palette = [
+        '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b',
+        '#14b8a6', '#ef4444', '#6366f1', '#f97316', '#22c55e',
+      ]
+      const categories = [...state.categories]
+      const findOrCreate = (name: string, kind: 'income' | 'expense'): string => {
+        const existing = categories.find(
+          (c) => c.name.toLowerCase() === name.toLowerCase() && c.kind === kind,
+        )
+        if (existing) return existing.id
+        const created: Category = {
+          id: uid(),
+          name,
+          kind,
+          group: kind === 'expense' ? 'want' : undefined,
+          color: palette[categories.length % palette.length],
+          icon: '🏷️',
+        }
+        categories.push(created)
+        return created.id
+      }
+
+      const transactions = action.payload.map((item) => {
+        const { categoryName, ...draft } = item
+        let categoryId = draft.categoryId
+        if (!categoryId && categoryName && draft.type !== 'transfer') {
+          categoryId = findOrCreate(categoryName, draft.type === 'income' ? 'income' : 'expense')
+        }
+        return { ...draft, categoryId, id: uid(), createdAt: now() }
+      })
+
+      return { ...state, categories, transactions: [...transactions, ...state.transactions] }
     }
     case 'UPDATE_TRANSACTION':
       return {
