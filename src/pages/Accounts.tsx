@@ -289,7 +289,7 @@ function CategoryManager({ onClose }: { onClose: () => void }) {
   }
 
   const groupLabel = (g?: Category['group']) =>
-    g === 'need' ? 'need' : g === 'want' ? 'want' : g === 'savings' ? 'savings' : ''
+    g === 'need' ? 'need' : g === 'want' ? 'want' : g === 'savings' ? 'savings' : g === 'transfer' ? 'transfer' : ''
 
   return (
     <Modal title="Manage categories" onClose={onClose}>
@@ -349,7 +349,15 @@ function CategoryManager({ onClose }: { onClose: () => void }) {
               <button type="button" className={group === 'savings' ? 'active' : ''} onClick={() => setGroup('savings')}>
                 Savings
               </button>
+              <button type="button" className={group === 'transfer' ? 'active' : ''} onClick={() => setGroup('transfer')}>
+                Transfer
+              </button>
             </div>
+            {group === 'transfer' && (
+              <span className="muted" style={{ fontSize: 12 }}>
+                Transfers between your own accounts — excluded from income &amp; spending totals.
+              </span>
+            )}
           </div>
         )}
         <div className="field">

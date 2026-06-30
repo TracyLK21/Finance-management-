@@ -8,6 +8,7 @@ import type {
 } from '../types'
 import { buildSeedState } from '../data/seed'
 import { accountDelta } from './selectors'
+import { isTransferLabel } from '../utils/csv'
 
 const STORAGE_KEY = 'fin.state.v1'
 const uid = () => crypto.randomUUID()
@@ -83,9 +84,9 @@ function reducer(state: FinanceState, action: Action): FinanceState {
           id: uid(),
           name,
           kind,
-          group: kind === 'expense' ? 'want' : undefined,
+          group: isTransferLabel(name) ? 'transfer' : kind === 'expense' ? 'want' : undefined,
           color: palette[categories.length % palette.length],
-          icon: '🏷️',
+          icon: isTransferLabel(name) ? '🔁' : '🏷️',
         }
         categories.push(created)
         return created.id

@@ -255,19 +255,35 @@ const CATEGORY_SYNONYMS: Record<string, string> = {
 
 // Bank categories that carry no useful classification — leave these uncategorised.
 const CATEGORY_SKIP = new Set([
-  'transfers out', 'transfers in', 'transfer', 'transfers', 'uncategorised',
-  'uncategorized', 'other', 'miscellaneous', 'misc', 'payment', 'payments',
+  'uncategorised', 'uncategorized', 'other', 'miscellaneous', 'misc', 'payment', 'payments',
 ])
+
+// Labels that mean money moving between the user's own accounts (or paying a
+// tracked card/loan) — not real income or spending.
+const TRANSFER_LABELS = new Set([
+  'transfer', 'transfers', 'transfers out', 'transfers in', 'internal transfer',
+  'internal transfers', 'credit card repayment', 'credit card repayments',
+  'loan repayment', 'loan repayments',
+])
+
+/** True if a category name represents a transfer rather than income/spending. */
+export function isTransferLabel(name: string): boolean {
+  const key = (name || '').trim().toLowerCase()
+  return TRANSFER_LABELS.has(key) || key === 'internal transfers' || key === 'credit card repayments'
+}
 
 /**
  * Normalises a bank-supplied category label to a category name we should use,
- * or '' if it should be skipped (left uncategorised).
+ * or '' if it should be skipped (left uncategorised). Transfer-like labels are
+ * bucketed so they can be excluded from income/expense analysis.
  */
 export function canonicalCategory(raw: string): string {
   const v = raw.trim()
   if (!v) return ''
   const key = v.toLowerCase()
   if (CATEGORY_SKIP.has(key)) return ''
+  if (key.includes('credit card')) return 'Credit card repayments'
+  if (TRANSFER_LABELS.has(key)) return 'Internal transfers'
   return CATEGORY_SYNONYMS[key] ?? v
 }
 

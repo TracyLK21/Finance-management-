@@ -23,6 +23,19 @@ export function totalNetWorth(state: FinanceState): number {
   return state.accounts.reduce((sum, a) => sum + accountBalance(state, a), 0)
 }
 
+/**
+ * True if a transaction is a transfer between the user's own accounts (either a
+ * real 'transfer' type, or categorised into a transfer-group category). These
+ * are excluded from income/expense analysis since they aren't real income or
+ * spending — they still affect account balances.
+ */
+export function isInternalMovement(state: FinanceState, t: Transaction): boolean {
+  if (t.type === 'transfer') return true
+  if (!t.categoryId) return false
+  const c = state.categories.find((x) => x.id === t.categoryId)
+  return c?.group === 'transfer'
+}
+
 export interface MonthSummary {
   monthKey: string
   income: number
@@ -39,6 +52,7 @@ export function monthlySummaries(state: FinanceState, monthCount: number): Month
     const k = monthKey(t.date)
     const entry = map.get(k)
     if (!entry) continue
+    if (isInternalMovement(state, t)) continue
     if (t.type === 'income') entry.income += t.amount
     else if (t.type === 'expense') entry.expense += t.amount
   }
@@ -50,6 +64,7 @@ export function summaryForMonth(state: FinanceState, monthKeyStr: string): Month
   const entry: MonthSummary = { monthKey: monthKeyStr, income: 0, expense: 0, net: 0 }
   for (const t of state.transactions) {
     if (monthKey(t.date) !== monthKeyStr) continue
+    if (isInternalMovement(state, t)) continue
     if (t.type === 'income') entry.income += t.amount
     else if (t.type === 'expense') entry.expense += t.amount
   }
@@ -68,6 +83,7 @@ export function spendingByCategory(state: FinanceState, monthKeyStr: string): Ca
   for (const t of state.transactions) {
     if (t.type !== 'expense' || !t.categoryId) continue
     if (monthKey(t.date) !== monthKeyStr) continue
+    if (isInternalMovement(state, t)) continue
     totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
   }
   const result: CategorySpend[] = []
@@ -136,18 +152,22 @@ export function periodSummary(state: FinanceState, months: number): PeriodSummar
   const keys = new Set(recentMonthKeys(months))
   let income = 0
   let expense = 0
-  const byGroup: Record<CategoryGroup, number> = { need: 0, want: 0, savings: 0 }
+  const byGroup: Record<CategoryGroup, number> = { need: 0, want: 0, savings: 0, transfer: 0 }
   let unclassified = 0
 
   for (const t of state.transactions) {
     if (!keys.has(monthKey(t.date))) continue
+    if (isInternalMovement(state, t)) continue
     if (t.type === 'income') {
       income += t.amount
     } else if (t.type === 'expense') {
       expense += t.amount
       const cat = t.categoryId ? state.categories.find((c) => c.id === t.categoryId) : undefined
-      if (cat?.group) byGroup[cat.group] += t.amount
-      else unclassified += t.amount
+      if (cat?.group === 'need' || cat?.group === 'want' || cat?.group === 'savings') {
+        byGroup[cat.group] += t.amount
+      } else {
+        unclassified += t.amount
+      }
     }
   }
 
@@ -173,6 +193,7 @@ export function spendingByCategoryRange(state: FinanceState, months: number): Ca
   for (const t of state.transactions) {
     if (t.type !== 'expense' || !t.categoryId) continue
     if (!keys.has(monthKey(t.date))) continue
+    if (isInternalMovement(state, t)) continue
     totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
   }
   const result: CategorySpend[] = []

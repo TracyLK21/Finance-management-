@@ -153,7 +153,30 @@ export default function Import() {
     categoryCol, expensesNegative, dateFormat, defaultScope, state.categories, state.rules,
   ])
 
-  const matched = drafts.filter((d) => d.categoryId || d.categoryName).length
+  // Skip rows that already exist (same account, date, type, amount, note) so
+  // re-importing a statement doesn't double-count anything.
+  const { uniqueDrafts, duplicatesSkipped } = useMemo(() => {
+    const key = (accId: string, date: string, type: string, amount: number, note?: string) =>
+      `${accId}|${date}|${type}|${amount}|${(note ?? '').trim()}`
+    const existing = new Set(
+      state.transactions.map((t) => key(t.accountId, t.date, t.type, t.amount, t.note)),
+    )
+    const unique: Draft[] = []
+    const seen = new Set<string>()
+    let dup = 0
+    for (const d of drafts) {
+      const k = key(d.accountId, d.date, d.type, d.amount, d.note)
+      if (existing.has(k) || seen.has(k)) {
+        dup++
+        continue
+      }
+      seen.add(k)
+      unique.push(d)
+    }
+    return { uniqueDrafts: unique, duplicatesSkipped: dup }
+  }, [drafts, state.transactions])
+
+  const matched = uniqueDrafts.filter((d) => d.categoryId || d.categoryName).length
 
   // Balance after the most recent dated row — used to reconcile the account
   // so its balance matches the bank exactly.
@@ -174,13 +197,13 @@ export default function Import() {
   }, [dataRows, balanceCol, dateCol, dateFormat])
 
   function doImport() {
-    if (drafts.length === 0) return
+    if (uniqueDrafts.length === 0) return
     const reconcile =
       balanceCol >= 0 && targetBalance != null && accountId
         ? { accountId, targetBalance }
         : undefined
-    dispatch({ type: 'IMPORT_TRANSACTIONS', payload: { items: drafts, reconcile } })
-    setImported(drafts.length)
+    dispatch({ type: 'IMPORT_TRANSACTIONS', payload: { items: uniqueDrafts, reconcile } })
+    setImported(uniqueDrafts.length)
     setRows([])
     setHeaders([])
     setFileName('')
@@ -420,17 +443,26 @@ export default function Import() {
             <h3 className="card-title">
               4. Preview
               <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
-                {drafts.length} ready · {matched} auto-categorised
+                {uniqueDrafts.length} ready · {matched} auto-categorised
+                {duplicatesSkipped > 0 ? ` · ${duplicatesSkipped} duplicates skipped` : ''}
               </span>
             </h3>
-            {drafts.length === 0 ? (
+            {uniqueDrafts.length === 0 ? (
               <div className="empty">
-                Select the Date, Description and Amount columns above to see a preview.
+                {duplicatesSkipped > 0
+                  ? `All ${duplicatesSkipped} rows are already imported — nothing new to add.`
+                  : 'Select the Date, Description and Amount columns above to see a preview.'}
               </div>
             ) : (
               <>
+                {duplicatesSkipped > 0 && (
+                  <p className="muted" style={{ fontSize: 12.5, marginTop: -6, marginBottom: 12 }}>
+                    Skipping {duplicatesSkipped} row{duplicatesSkipped === 1 ? '' : 's'} already in
+                    this account.
+                  </p>
+                )}
                 <div className="txn-list">
-                  {drafts.slice(0, 8).map((d, i) => {
+                  {uniqueDrafts.slice(0, 8).map((d, i) => {
                     const cat = categoryById(state, d.categoryId)
                     const catLabel = d.categoryName ?? cat?.name ?? 'Uncategorised'
                     return (
@@ -454,14 +486,14 @@ export default function Import() {
                     )
                   })}
                 </div>
-                {drafts.length > 8 && (
+                {uniqueDrafts.length > 8 && (
                   <div className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-                    …and {drafts.length - 8} more.
+                    …and {uniqueDrafts.length - 8} more.
                   </div>
                 )}
                 <div style={{ marginTop: 18 }}>
                   <button className="btn btn-primary" onClick={doImport}>
-                    Import {drafts.length} transactions
+                    Import {uniqueDrafts.length} transactions
                   </button>
                 </div>
               </>

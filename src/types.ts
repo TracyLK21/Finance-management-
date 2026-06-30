@@ -51,7 +51,7 @@ export interface Transaction {
  * money set aside ('savings'). Used for the 50/30/20 analysis. Income
  * categories don't carry a group.
  */
-export type CategoryGroup = 'need' | 'want' | 'savings'
+export type CategoryGroup = 'need' | 'want' | 'savings' | 'transfer'
 
 export interface Category {
   id: string
