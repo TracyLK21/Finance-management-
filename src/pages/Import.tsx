@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useFinance } from '../store/FinanceContext'
 import { categoryById } from '../store/selectors'
 import type { Transaction } from '../types'
@@ -151,6 +152,17 @@ export default function Import() {
           </p>
         </div>
       </div>
+
+      {state.accounts.length === 0 && (
+        <div className="card" style={{ marginBottom: 18, borderColor: 'var(--warning)' }}>
+          <strong style={{ color: 'var(--warning)' }}>Add an account first.</strong>{' '}
+          <span className="muted">
+            Imported transactions need somewhere to live —{' '}
+            <Link to="/accounts" style={{ color: 'var(--primary)' }}>add your account(s)</Link>{' '}
+            (e.g. your business and personal accounts), then come back here.
+          </span>
+        </div>
+      )}
 
       {imported != null && (
         <div className="card" style={{ marginBottom: 18, borderColor: 'var(--primary)' }}>

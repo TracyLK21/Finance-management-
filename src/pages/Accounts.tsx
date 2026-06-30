@@ -42,11 +42,16 @@ export default function Accounts() {
   }
 
   function clearData() {
-    if (!confirm('Delete ALL data and start empty? This cannot be undone.')) return
+    if (
+      !confirm(
+        'Start fresh? This removes all sample accounts, transactions, budgets and goals so you can enter your own. Your categories are kept so importing still auto-sorts. This cannot be undone.',
+      )
+    )
+      return
     localStorage.removeItem(STORAGE_KEY)
     dispatch({
       type: 'RESET',
-      payload: { accounts: [], transactions: [], categories: [], budgets: [], goals: [] },
+      payload: { accounts: [], transactions: [], categories: state.categories, budgets: [], goals: [] },
     })
   }
 
@@ -137,7 +142,7 @@ export default function Accounts() {
             ♻️ Load sample data
           </button>
           <button className="btn btn-sm btn-danger" onClick={clearData}>
-            🗑️ Clear all data
+            🌱 Start fresh (keep categories)
           </button>
         </div>
       </div>
