@@ -5,13 +5,37 @@ import type { Account, AccountType, Category } from '../types'
 import Modal from '../components/Modal'
 import { formatCurrency } from '../utils/format'
 
-const ACCOUNT_TYPES: AccountType[] = ['checking', 'savings', 'credit', 'cash', 'investment']
+const ACCOUNT_TYPES: AccountType[] = [
+  'transaction',
+  'business',
+  'savings',
+  'tax',
+  'credit',
+  'loan',
+  'cash',
+  'investment',
+]
 const TYPE_ICON: Record<AccountType, string> = {
-  checking: '🏦',
+  transaction: '🏦',
+  business: '💼',
   savings: '🐖',
+  tax: '🧾',
   credit: '💳',
+  loan: '🏠',
   cash: '💵',
   investment: '📈',
+  checking: '🏦',
+}
+const TYPE_LABEL: Record<AccountType, string> = {
+  transaction: 'Everyday / Transaction',
+  business: 'Business',
+  savings: 'Savings',
+  tax: 'GST / Tax set-aside',
+  credit: 'Credit card',
+  loan: 'Loan / Mortgage',
+  cash: 'Cash',
+  investment: 'Investment',
+  checking: 'Everyday / Transaction',
 }
 const PALETTE = ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#14b8a6', '#ef4444', '#6366f1']
 
@@ -77,8 +101,8 @@ export default function Accounts() {
                 </div>
                 <div>
                   <div style={{ fontWeight: 600 }}>{account.name}</div>
-                  <div className="muted" style={{ fontSize: 12.5, textTransform: 'capitalize' }}>
-                    {account.type}
+                  <div className="muted" style={{ fontSize: 12.5 }}>
+                    {TYPE_LABEL[account.type] ?? account.type}
                   </div>
                 </div>
               </div>
@@ -159,7 +183,7 @@ export default function Accounts() {
 function AccountModal({ existing, onClose }: { existing?: Account; onClose: () => void }) {
   const { state, dispatch } = useFinance()
   const [name, setName] = useState(existing?.name ?? '')
-  const [type, setType] = useState<AccountType>(existing?.type ?? 'checking')
+  const [type, setType] = useState<AccountType>(existing?.type ?? 'transaction')
   // Show/edit the current balance (intuitive); we back-calculate the opening
   // balance so that opening + existing transactions == the entered balance.
   const currentBalance = existing ? accountBalance(state, existing) : 0
@@ -199,7 +223,7 @@ function AccountModal({ existing, onClose }: { existing?: Account; onClose: () =
           <select className="select" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
             {ACCOUNT_TYPES.map((t) => (
               <option key={t} value={t}>
-                {TYPE_ICON[t]} {t[0].toUpperCase() + t.slice(1)}
+                {TYPE_ICON[t]} {TYPE_LABEL[t]}
               </option>
             ))}
           </select>

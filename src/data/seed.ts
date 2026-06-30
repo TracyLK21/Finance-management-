@@ -41,7 +41,7 @@ export function buildSeedState(): FinanceState {
   ]
 
   const accounts = [
-    { id: checking, name: 'Everyday Checking', type: 'checking' as const, openingBalance: 2400, createdAt: new Date().toISOString() },
+    { id: checking, name: 'Everyday Account', type: 'transaction' as const, openingBalance: 2400, createdAt: new Date().toISOString() },
     { id: savings, name: 'High-Yield Savings', type: 'savings' as const, openingBalance: 8200, createdAt: new Date().toISOString() },
     { id: credit, name: 'Rewards Credit Card', type: 'credit' as const, openingBalance: -640, createdAt: new Date().toISOString() },
   ]

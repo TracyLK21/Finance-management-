@@ -1,6 +1,16 @@
 // Core domain types for the finance management app.
 
-export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'investment'
+export type AccountType =
+  | 'transaction'
+  | 'business'
+  | 'savings'
+  | 'tax'
+  | 'credit'
+  | 'loan'
+  | 'cash'
+  | 'investment'
+  // Legacy value kept so older saved data still renders.
+  | 'checking'
 
 export interface Account {
   id: string
