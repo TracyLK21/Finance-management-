@@ -31,6 +31,7 @@ export default function Import() {
   const [debitCol, setDebitCol] = useState(-1)
   const [creditCol, setCreditCol] = useState(-1)
   const [categoryCol, setCategoryCol] = useState(-1)
+  const [balanceCol, setBalanceCol] = useState(-1)
   const [expensesNegative, setExpensesNegative] = useState(true)
   const [dateFormat, setDateFormat] = useState<DateFormat>('DMY')
 
@@ -49,6 +50,7 @@ export default function Import() {
     if (desc < 0) desc = find('reference', 'transaction')
     setDescCol(desc)
     setCategoryCol(find('category'))
+    setBalanceCol(find('balance'))
     const amt = find('amount')
     const deb = find('debit', 'withdrawal')
     const cred = find('credit', 'deposit')
@@ -145,9 +147,31 @@ export default function Import() {
 
   const matched = drafts.filter((d) => d.categoryId || d.categoryName).length
 
+  // Balance after the most recent dated row — used to reconcile the account
+  // so its balance matches the bank exactly.
+  const targetBalance = useMemo(() => {
+    if (balanceCol < 0 || dateCol < 0) return null
+    let bestDate = ''
+    let bal: number | null = null
+    for (const row of dataRows) {
+      const iso = parseDate(row[dateCol] ?? '', dateFormat)
+      const b = parseAmount(row[balanceCol] ?? '')
+      if (!iso || b == null) continue
+      if (iso > bestDate) {
+        bestDate = iso
+        bal = b
+      }
+    }
+    return bal
+  }, [dataRows, balanceCol, dateCol, dateFormat])
+
   function doImport() {
     if (drafts.length === 0) return
-    dispatch({ type: 'IMPORT_TRANSACTIONS', payload: drafts })
+    const reconcile =
+      balanceCol >= 0 && targetBalance != null && accountId
+        ? { accountId, targetBalance }
+        : undefined
+    dispatch({ type: 'IMPORT_TRANSACTIONS', payload: { items: drafts, reconcile } })
     setImported(drafts.length)
     setRows([])
     setHeaders([])
@@ -324,6 +348,25 @@ export default function Import() {
                 </div>
               </div>
             )}
+
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>Balance column (optional — recommended)</label>
+              <select className="select" value={balanceCol} onChange={(e) => setBalanceCol(+e.target.value)}>
+                <option value={-1}>None</option>
+                {columnOptions}
+              </select>
+              {balanceCol >= 0 && targetBalance != null && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  ✅ We'll set this account to match your bank: {formatCurrency(targetBalance)}.
+                </span>
+              )}
+              {balanceCol < 0 && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  If your statement has a running balance column, choosing it makes the account
+                  balance match your bank exactly.
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="card" style={{ marginBottom: 18 }}>

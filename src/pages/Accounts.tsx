@@ -157,19 +157,25 @@ export default function Accounts() {
 }
 
 function AccountModal({ existing, onClose }: { existing?: Account; onClose: () => void }) {
-  const { dispatch } = useFinance()
+  const { state, dispatch } = useFinance()
   const [name, setName] = useState(existing?.name ?? '')
   const [type, setType] = useState<AccountType>(existing?.type ?? 'checking')
-  const [opening, setOpening] = useState(existing ? String(existing.openingBalance) : '')
+  // Show/edit the current balance (intuitive); we back-calculate the opening
+  // balance so that opening + existing transactions == the entered balance.
+  const currentBalance = existing ? accountBalance(state, existing) : 0
+  const [balance, setBalance] = useState(existing ? String(currentBalance) : '')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const openingBalance = parseFloat(opening) || 0
+    const enteredBalance = parseFloat(balance) || 0
     if (!name.trim()) return
     if (existing) {
+      // Keep existing transactions; adjust opening so the displayed balance matches.
+      const txnDelta = currentBalance - existing.openingBalance
+      const openingBalance = enteredBalance - txnDelta
       dispatch({ type: 'UPDATE_ACCOUNT', payload: { ...existing, name: name.trim(), type, openingBalance } })
     } else {
-      dispatch({ type: 'ADD_ACCOUNT', payload: { name: name.trim(), type, openingBalance } })
+      dispatch({ type: 'ADD_ACCOUNT', payload: { name: name.trim(), type, openingBalance: enteredBalance } })
     }
     onClose()
   }
@@ -199,17 +205,18 @@ function AccountModal({ existing, onClose }: { existing?: Account; onClose: () =
           </select>
         </div>
         <div className="field">
-          <label>Opening / current balance</label>
+          <label>Current balance</label>
           <input
             className="input"
             type="number"
             step="0.01"
-            value={opening}
-            onChange={(e) => setOpening(e.target.value)}
+            value={balance}
+            onChange={(e) => setBalance(e.target.value)}
             placeholder="0.00"
           />
           <span className="muted" style={{ fontSize: 12 }}>
-            Use a negative number for credit card debt.
+            Your balance right now (negative for debt). Existing transactions are kept; we adjust the
+            starting point so this matches.
           </span>
         </div>
         <div className="modal-actions">

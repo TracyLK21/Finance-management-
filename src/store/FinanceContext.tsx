@@ -7,6 +7,7 @@ import type {
   Transaction,
 } from '../types'
 import { buildSeedState } from '../data/seed'
+import { accountDelta } from './selectors'
 
 const STORAGE_KEY = 'fin.state.v1'
 const uid = () => crypto.randomUUID()
@@ -17,7 +18,12 @@ type Action =
   | { type: 'ADD_TRANSACTIONS'; payload: Omit<Transaction, 'id' | 'createdAt'>[] }
   | {
       type: 'IMPORT_TRANSACTIONS'
-      payload: (Omit<Transaction, 'id' | 'createdAt'> & { categoryName?: string })[]
+      payload: {
+        items: (Omit<Transaction, 'id' | 'createdAt'> & { categoryName?: string })[]
+        /** When set, adjust the account's opening balance so its computed
+         * balance equals targetBalance (reconciles to the bank's figure). */
+        reconcile?: { accountId: string; targetBalance: number }
+      }
     }
   | { type: 'UPDATE_TRANSACTION'; payload: Transaction }
   | { type: 'DELETE_TRANSACTION'; payload: { id: string } }
@@ -74,7 +80,7 @@ function reducer(state: FinanceState, action: Action): FinanceState {
         return created.id
       }
 
-      const transactions = action.payload.map((item) => {
+      const imported = action.payload.items.map((item) => {
         const { categoryName, ...draft } = item
         let categoryId = draft.categoryId
         if (!categoryId && categoryName && draft.type !== 'transfer') {
@@ -83,7 +89,24 @@ function reducer(state: FinanceState, action: Action): FinanceState {
         return { ...draft, categoryId, id: uid(), createdAt: now() }
       })
 
-      return { ...state, categories, transactions: [...transactions, ...state.transactions] }
+      const allTransactions = [...imported, ...state.transactions]
+
+      // Reconcile the target account's opening balance to the bank's figure.
+      let accounts = state.accounts
+      const reconcile = action.payload.reconcile
+      if (reconcile) {
+        const delta = allTransactions.reduce(
+          (sum, t) => sum + accountDelta(t, reconcile.accountId),
+          0,
+        )
+        accounts = state.accounts.map((a) =>
+          a.id === reconcile.accountId
+            ? { ...a, openingBalance: reconcile.targetBalance - delta }
+            : a,
+        )
+      }
+
+      return { ...state, accounts, categories, transactions: allTransactions }
     }
     case 'UPDATE_TRANSACTION':
       return {
